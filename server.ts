@@ -96,77 +96,94 @@ function isValidOAB(oab: string) {
   return regex.test(oab);
 }
 
+// JWT Helper
+const JWT_SECRET = process.env.JWT_SECRET || "aurex-law-secret-lux-2024";
+
 // --- API ROUTES ---
 
 // 0. Discovery: Search Lawyers
 app.get("/api/lawyers/search", (req, res) => {
-  const { specialty, lat, long, radius = 50, q } = req.query;
-  
-  let results = users.filter(u => u.role === "ADVOGADO");
-
-  if (specialty) {
-    results = results.filter(u => u.specialties?.includes(specialty as string));
-  }
-
-  if (q) {
-    const query = (q as string).toLowerCase();
-    results = results.filter(u => 
-      u.name.toLowerCase().includes(query) || 
-      u.oab?.toLowerCase().includes(query)
-    );
-  }
-
-  // Simple haversine-ish filter if lat/long provided
-  if (lat && long) {
-    const userLat = parseFloat(lat as string);
-    const userLong = parseFloat(long as string);
+  try {
+    const { specialty, lat, long, radius = 50, q } = req.query;
     
-    results = results.map(lawyer => {
-      // Calculate distance (very rough approximation for demo)
-      const d = Math.sqrt(Math.pow(lawyer.lat - userLat, 2) + Math.pow(lawyer.long - userLong, 2)) * 111;
-      return { ...lawyer, distance: d };
-    }).filter(lawyer => lawyer.distance <= (parseFloat(radius as string)));
-    
-    results.sort((a, b) => (a.distance || 0) - (b.distance || 0));
-  }
+    let results = users.filter(u => u.role === "ADVOGADO");
 
-  res.json(results);
+    if (specialty) {
+      results = results.filter(u => u.specialties?.includes(specialty as string));
+    }
+
+    if (q) {
+      const query = (q as string).toLowerCase();
+      results = results.filter(u => 
+        u.name.toLowerCase().includes(query) || 
+        u.oab?.toLowerCase().includes(query)
+      );
+    }
+
+    // Simple haversine-ish filter if lat/long provided
+    if (lat && long) {
+      const userLat = parseFloat(lat as string);
+      const userLong = parseFloat(long as string);
+      
+      results = results.map(lawyer => {
+        // Calculate distance (very rough approximation for demo)
+        const d = Math.sqrt(Math.pow(lawyer.lat - userLat, 2) + Math.pow(lawyer.long - userLong, 2)) * 111;
+        return { ...lawyer, distance: d };
+      }).filter(lawyer => lawyer.distance <= (parseFloat(radius as string)));
+      
+      results.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+    }
+
+    res.json(results);
+  } catch (err: any) {
+    console.error("Search Error:", err);
+    res.status(500).json({ error: "Erro interno na busca" });
+  }
 });
 
 // 1. Auth: Register
 app.post("/api/auth/register", async (req, res) => {
-  const { name, email, password, role, oab, specialties } = req.body;
-  
-  if (users.find(u => u.email === email)) {
-    return res.status(400).json({ error: "Usuário já existe" });
+  try {
+    const { name, email, password, role, oab, specialties } = req.body;
+    
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: "Preencha todos os campos obrigatórios" });
+    }
+
+    if (users.find(u => u.email === email)) {
+      return res.status(400).json({ error: "Este e-mail já está cadastrado" });
+    }
+
+    if (role === 'ADVOGADO' && oab && !isValidOAB(oab)) {
+      return res.status(400).json({ error: "Formato de OAB inválido. Use 'UF 123456' (Ex: SP 123456)" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = {
+      id: Math.random().toString(36).substr(2, 9),
+      name,
+      email,
+      password: hashedPassword,
+      role: role || "CLIENTE",
+      oab,
+      specialties,
+      plan: "ESSENTIAL",
+      subscriptionStatus: "INACTIVE"
+    };
+
+    users.push(newUser);
+    
+    // Simulate Email Sending
+    await sendWelcomeEmail(email, name, newUser.role);
+
+    const token = jwt.sign({ id: newUser.id, role: newUser.role }, JWT_SECRET);
+    
+    const { password: _, ...userWithoutPassword } = newUser;
+    res.json({ user: userWithoutPassword, token });
+  } catch (err: any) {
+    console.error("Register Error:", err);
+    res.status(500).json({ error: "Erro interno no servidor ao registrar" });
   }
-
-  if (role === 'ADVOGADO' && oab && !isValidOAB(oab)) {
-    return res.status(400).json({ error: "Formato de OAB inválido. Use 'UF 123456' (Ex: SP 123456)" });
-  }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const newUser = {
-    id: Math.random().toString(36).substr(2, 9),
-    name,
-    email,
-    password: hashedPassword,
-    role: role || "CLIENTE",
-    oab,
-    specialties,
-    plan: "ESSENTIAL",
-    subscriptionStatus: "INACTIVE"
-  };
-
-  users.push(newUser);
-  
-  // Simulate Email Sending
-  await sendWelcomeEmail(email, name, newUser.role);
-
-  const token = jwt.sign({ id: newUser.id, role: newUser.role }, JWT_SECRET);
-  
-  const { password: _, ...userWithoutPassword } = newUser;
-  res.json({ user: userWithoutPassword, token });
 });
 
 // 5. Cases API
