@@ -1,0 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@300;400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
+
+  --color-obsidian: #0A0A0A;
+  --color-carbon: #1A1A1A;
+  --color-gold: #C9A227;
+  --color-gold-light: #E5CD7E;
+}
+
+@layer base {
+  body {
+    @apply bg-obsidian text-slate-300 font-sans antialiased;
+  }
+}
+
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.gold-glow {
+  box-shadow: 0 0 20px rgba(201, 162, 39, 0.15);
+}
+
+.gold-gradient {
+  background: linear-gradient(135deg, #C9A227 0%, #E5CD7E 100%);
+}
+

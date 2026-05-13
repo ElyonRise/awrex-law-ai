@@ -1,0 +1,6 @@
+{
+  "name": "Aurex Law",
+  "description": "Plataforma SaaS premium de infraestrutura jurídica para escritórios modernos, com triagem inteligente via IA e gestão administrativa.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": []
+}
