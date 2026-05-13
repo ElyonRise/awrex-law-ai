@@ -5,7 +5,7 @@ import {
   BarChart3, Users, Briefcase, Clock, Calendar, 
   Search, Bell, Shield, FileText, ChevronRight,
   TrendingUp, Activity, Plus, X, User as UserIcon,
-  FolderOpen, Gavel
+  FolderOpen, Gavel, Trash2
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -29,19 +29,56 @@ export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [showNewCaseModal, setShowNewCaseModal] = useState(false);
-  const [newCase, setNewCase] = useState({ title: '', client: '', priority: 'Média' });
-  const [casesList, setCasesList] = useState([
-    { id: '1', title: 'Inventário - Família Souza', client: 'Carlos Souza', status: 'Ativo', priority: 'Média' },
-    { id: '2', title: 'Consultoria Contratual Tech', client: 'Startup X', status: 'Priority', priority: 'Alta' },
-    { id: '3', title: 'Ação Trabalhista Revisional', client: 'Maria Oliveira', status: 'Arquivado', priority: 'Baixa' },
-  ]);
+  const [newCase, setNewCase] = useState({ title: '', client: '', priority: 'Média', description: '' });
+  const [casesList, setCasesList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleCreateCase = (e: React.FormEvent) => {
+  const fetchCases = async () => {
+    try {
+      const res = await fetch('/api/cases');
+      const data = await res.json();
+      setCasesList(data);
+    } catch (err) {
+      console.error("Erro ao buscar casos:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchCases();
+  }, []);
+
+  const handleCreateCase = async (e: React.FormEvent) => {
     e.preventDefault();
-    const id = (casesList.length + 1).toString();
-    setCasesList([{ id, ...newCase, status: 'Ativo' }, ...casesList]);
-    setShowNewCaseModal(false);
-    setNewCase({ title: '', client: '', priority: 'Média' });
+    try {
+      const res = await fetch('/api/cases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCase),
+      });
+      const data = await res.json();
+      setCasesList([data, ...casesList]);
+      setShowNewCaseModal(false);
+      setNewCase({ title: '', client: '', priority: 'Média', description: '' });
+    } catch (err) {
+      alert("Erro ao criar caso");
+    }
+  };
+
+  const handleDeleteCase = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm("Tem certeza que deseja apagar este caso permanentemente?")) return;
+
+    try {
+      const res = await fetch(`/api/cases/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setCasesList(casesList.filter(c => c.id !== id));
+      }
+    } catch (err) {
+      alert("Erro ao apagar caso");
+    }
   };
 
   const isAdvogado = user?.role === 'ADVOGADO';
@@ -100,8 +137,15 @@ export default function Dashboard() {
                 <div className="flex items-center gap-6">
                   <div className="text-right">
                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Documentos</p>
-                    <p className="text-xs text-white font-medium">3 Arquivos no Vault</p>
+                    <p className="text-xs text-white font-medium">{c.documents?.length || 0} Arquivos</p>
                   </div>
+                  <button 
+                    onClick={(e) => handleDeleteCase(e, c.id)}
+                    className="p-2 text-slate-600 hover:text-red-500 transition-colors"
+                    title="Excluir Caso"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                   <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-gold transition-colors" />
                 </div>
               </Link>
@@ -198,6 +242,12 @@ export default function Dashboard() {
                     </span>
                     <span className="text-[9px] text-slate-600 font-bold uppercase tracking-tighter">Prioridade {c.priority}</span>
                   </div>
+                  <button 
+                    onClick={(e) => handleDeleteCase(e, c.id)}
+                    className="p-2 text-slate-600 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                   <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-gold transition-colors" />
                 </div>
               </Link>

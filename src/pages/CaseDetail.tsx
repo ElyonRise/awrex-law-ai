@@ -14,39 +14,58 @@ export default function CaseDetail() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'documents' | 'timeline' | 'messages'>('documents');
   const [uploading, setUploading] = useState(false);
+  const [caseData, setCaseData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Mock Case Data
-  const caseData = {
-    id: id,
-    title: 'Inventário - Família Souza',
-    client: 'Carlos Souza',
-    status: 'Ativo',
-    priority: 'Alta',
-    description: 'Processo de inventário referente ao espólio de João Souza. Divergências sobre a partilha do imóvel sediado em Barueri.',
-    createdAt: '12/04/2026',
-    documents: [
-      { name: 'Certidao_Obito.pdf', size: '1.2 MB', date: '12/04/2026', owner: 'Cliente' },
-      { name: 'Escritura_Imovel.pdf', size: '4.5 MB', date: '13/04/2026', owner: 'Advogado' },
-      { name: 'Peticao_Inicial_Final.docx', size: '842 KB', date: '15/04/2026', owner: 'Advogado' },
-    ],
-    timeline: [
-      { event: 'Abertura de Protocolo', date: '12/04/2026', icon: CheckCircle2, color: 'green' },
-      { event: 'Upload de Documentos Base', date: '12/04/2026', icon: FileText, color: 'gold' },
-      { event: 'Análise de Risco IA concluída', date: '14/04/2026', icon: Shield, color: 'gold' },
-      { event: 'Petição Protocolada', date: '15/04/2026', icon: ArrowLeft, color: 'slate' },
-    ]
+  const fetchCase = async () => {
+    try {
+      const res = await fetch(`/api/cases/${id}`);
+      if (!res.ok) throw new Error("Caso não existe");
+      const data = await res.json();
+      setCaseData(data);
+    } catch (err) {
+      navigate('/dashboard');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  React.useEffect(() => {
+    fetchCase();
+  }, [id]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setUploading(true);
-      // Simulate upload
+      // Simulate upload integration with backend
       setTimeout(() => {
         setUploading(false);
+        const newDoc = { name: e.target.files![0].name, size: 'Auto', date: new Date().toLocaleDateString(), owner: user?.name };
+        setCaseData({ ...caseData, documents: [...(caseData.documents || []), newDoc] });
         alert('Documento enviado com sucesso para o Vault Criptografado.');
       }, 1500);
     }
   };
+
+  const handleDeleteDocument = async (docName: string) => {
+    if (!confirm("Excluir este documento do Vault?")) return;
+    try {
+      const res = await fetch(`/api/cases/${id}/documents/${encodeURIComponent(docName)}`, { method: 'DELETE' });
+      if (res.ok) {
+        setCaseData({ ...caseData, documents: caseData.documents.filter((d: any) => d.name !== docName) });
+      }
+    } catch (err) {
+      alert("Erro ao excluir arquivo");
+    }
+  };
+
+  if (loading) return <div className="pt-32 text-center text-gold">Carregando dados seguros...</div>;
+  if (!caseData) return null;
+
+  const timelineSteps = [
+    { event: 'Abertura de Protocolo', date: caseData.createdAt || 'Recent', icon: CheckCircle2, color: 'green' },
+    { event: 'Análise de Risco IA', date: 'Automático', icon: Shield, color: 'gold' },
+  ];
 
   return (
     <div className="pt-24 pb-20 px-6 max-w-7xl mx-auto">
@@ -80,9 +99,7 @@ export default function CaseDetail() {
         </div>
       </div>
 
-      {/* Tabs Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Navigation Sidebar */}
         <div className="lg:col-span-1 space-y-2">
            {[
              { id: 'documents', label: 'Documentos & Vault', icon: FileText },
@@ -104,7 +121,6 @@ export default function CaseDetail() {
            ))}
         </div>
 
-        {/* Content Area */}
         <div className="lg:col-span-3">
            <AnimatePresence mode="wait">
              <motion.div
@@ -129,7 +145,7 @@ export default function CaseDetail() {
                    </div>
 
                    <div className="space-y-3">
-                      {caseData.documents.map((doc, i) => (
+                      {caseData.documents?.map((doc: any, i: number) => (
                         <div key={i} className="flex items-center justify-between p-4 rounded-2xl bg-black/20 border border-white/5 group hover:border-gold/30 transition-all">
                            <div className="flex items-center gap-4">
                               <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center">
@@ -146,12 +162,20 @@ export default function CaseDetail() {
                               <button className="p-2 text-slate-500 hover:text-white transition-colors">
                                  <Download className="w-5 h-5" />
                               </button>
-                              <button className="p-2 text-slate-500 hover:text-red-500 transition-colors">
+                              <button 
+                                onClick={() => handleDeleteDocument(doc.name)}
+                                className="p-2 text-slate-500 hover:text-red-500 transition-colors"
+                              >
                                  <Trash2 className="w-5 h-5" />
                               </button>
                            </div>
                         </div>
                       ))}
+                      {(!caseData.documents || caseData.documents.length === 0) && (
+                        <div className="text-center py-12 text-slate-600 border-2 border-dashed border-white/5 rounded-3xl uppercase tracking-widest font-black text-[10px]">
+                          Nenhum documento anexado ao Vault
+                        </div>
+                      )}
                    </div>
                  </div>
                )}
@@ -160,10 +184,10 @@ export default function CaseDetail() {
                  <div className="space-y-8">
                    <h3 className="text-xl font-display font-medium text-white">Fluxo Processual</h3>
                    <div className="space-y-8 relative before:absolute before:left-6 before:top-4 before:bottom-4 before:w-px before:bg-white/10">
-                      {caseData.timeline.map((step, i) => (
+                      {timelineSteps.map((step, i) => (
                         <div key={i} className="flex gap-6 relative">
-                           <div className={`w-12 h-12 rounded-2xl bg-${step.color}-500/10 flex items-center justify-center z-10 shrink-0 border border-${step.color}-500/20`}>
-                              <step.icon className={`w-6 h-6 text-${step.color}-500`} />
+                           <div className={`w-12 h-12 rounded-2xl bg-gold/10 flex items-center justify-center z-10 shrink-0 border border-gold/20`}>
+                              <step.icon className={`w-6 h-6 text-gold`} />
                            </div>
                            <div>
                               <p className="text-white font-medium">{step.event}</p>

@@ -40,6 +40,15 @@ export default function AuthPage({ type }: AuthPageProps) {
     setLoading(true);
     setError('');
 
+    if (type === 'register' && role === 'ADVOGADO') {
+      const oabRegex = /^[A-Z]{2}\s\d{4,8}$/;
+      if (!oabRegex.test(oab)) {
+        setError("Formato de OAB inválido. Use UF + Número (Ex: SP 123456)");
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       const endpoint = type === 'login' ? '/api/auth/login' : '/api/auth/register';
       const body = type === 'login' 

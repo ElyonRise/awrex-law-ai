@@ -54,40 +54,47 @@ const users: any[] = [
     lat: -22.9068,
     long: -43.1729,
     rating: 4.8
-  },
-  {
-    id: "l3",
-    name: "Dr. Carlos Eduardo Malta",
-    email: "carlos@aurex.law",
-    password: "hashed",
-    role: "ADVOGADO",
-    oab: "MG 998877",
-    specialties: ["Tributário", "Empresarial"],
-    plan: "ELITE",
-    subscriptionStatus: "ACTIVE",
-    lat: -19.8157,
-    long: -43.9542,
-    rating: 4.9
-  },
-  {
-    id: "l4",
-    name: "Dra. Beatriz Santos",
-    email: "beatriz@aurex.law",
-    password: "hashed",
-    role: "ADVOGADO",
-    oab: "DF 112233",
-    specialties: ["Trabalhista", "Previdenciário"],
-    plan: "ESSENTIAL",
-    subscriptionStatus: "ACTIVE",
-    lat: -15.7975,
-    long: -47.8919,
-    rating: 4.7
   }
 ];
-const cases: any[] = [];
 
-// JWT Helper
-const JWT_SECRET = process.env.JWT_SECRET || "aurex-law-secret-lux-2024";
+// Initial mock cases
+let cases: any[] = [
+  { 
+    id: '1', 
+    title: 'Inventário - Família Souza', 
+    client: 'Carlos Souza', 
+    status: 'Ativo', 
+    priority: 'Alta', 
+    description: 'Processo de inventário referente ao espólio de João Souza.',
+    documents: [
+      { name: 'Certidao_Obito.pdf', size: '1.2 MB', date: '12/04/2026', owner: 'Cliente' },
+      { name: 'Escritura_Imovel.pdf', size: '4.5 MB', date: '13/04/2026', owner: 'Advogado' }
+    ]
+  },
+  { 
+    id: '2', 
+    title: 'Consultoria Contratual Tech', 
+    client: 'Startup X', 
+    status: 'Priority', 
+    priority: 'Alta', 
+    description: 'Análise de contratos de prestação de serviços internacionais.',
+    documents: []
+  },
+];
+
+// Helper to simulate sending email
+async function sendWelcomeEmail(email: string, name: string, role: string) {
+  console.log(`[EMAIL SIMULATOR] Enviando e-mail de boas-vindas para: ${email}`);
+  console.log(`Assunto: Bem-vindo à Aurex Law, ${name}!`);
+  console.log(`Conteúdo: Olá ${name}, sua conta como ${role} foi criada com sucesso. Acesse o painel para configurar seu perfil.`);
+}
+
+// OAB Validation Helper
+function isValidOAB(oab: string) {
+  // Pattern: UF + Space + 4 to 6 numbers (e.g., SP 123456)
+  const regex = /^[A-Z]{2}\s\d{4,8}$/;
+  return regex.test(oab);
+}
 
 // --- API ROUTES ---
 
@@ -134,13 +141,17 @@ app.post("/api/auth/register", async (req, res) => {
     return res.status(400).json({ error: "Usuário já existe" });
   }
 
+  if (role === 'ADVOGADO' && oab && !isValidOAB(oab)) {
+    return res.status(400).json({ error: "Formato de OAB inválido. Use 'UF 123456' (Ex: SP 123456)" });
+  }
+
   const hashedPassword = await bcrypt.hash(password, 10);
   const newUser = {
     id: Math.random().toString(36).substr(2, 9),
     name,
     email,
     password: hashedPassword,
-    role: role || "CLIENTE", // ADVOGADO or CLIENTE
+    role: role || "CLIENTE",
     oab,
     specialties,
     plan: "ESSENTIAL",
@@ -148,10 +159,54 @@ app.post("/api/auth/register", async (req, res) => {
   };
 
   users.push(newUser);
+  
+  // Simulate Email Sending
+  await sendWelcomeEmail(email, name, newUser.role);
+
   const token = jwt.sign({ id: newUser.id, role: newUser.role }, JWT_SECRET);
   
   const { password: _, ...userWithoutPassword } = newUser;
   res.json({ user: userWithoutPassword, token });
+});
+
+// 5. Cases API
+app.get("/api/cases", (req, res) => {
+  res.json(cases);
+});
+
+app.get("/api/cases/:id", (req, res) => {
+  const caseItem = cases.find(c => c.id === req.params.id);
+  if (!caseItem) return res.status(404).json({ error: "Caso não encontrado" });
+  res.json(caseItem);
+});
+
+app.post("/api/cases", (req, res) => {
+  const newCaseItem = {
+    id: Math.random().toString(36).substr(2, 9),
+    ...req.body,
+    status: 'Ativo',
+    documents: []
+  };
+  cases.unshift(newCaseItem);
+  res.json(newCaseItem);
+});
+
+app.delete("/api/cases/:id", (req, res) => {
+  const index = cases.findIndex(c => c.id === req.params.id);
+  if (index !== -1) {
+    cases.splice(index, 1);
+    return res.json({ success: true });
+  }
+  res.status(404).json({ error: "Caso não encontrado" });
+});
+
+app.delete("/api/cases/:caseId/documents/:docName", (req, res) => {
+  const caseItem = cases.find(c => c.id === req.params.caseId);
+  if (caseItem) {
+    caseItem.documents = caseItem.documents.filter((d: any) => d.name !== req.params.docName);
+    return res.json({ success: true });
+  }
+  res.status(404).json({ error: "Documento não encontrado" });
 });
 
 // 2. Auth: Login
